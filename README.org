@@ -1,0 +1,913 @@
+#+TITLE: Statistical analyses - FFLCH/Libolo Paired Means Comparison
+#+SUBTITLE: Análise estatística da duração de tempo de pronúncia
+#+AUTHOR: Rafael Rodrigues de Moraes
+#+DATE: 22.02.2021
+#+STARTUP: inlineimages showall
+#+LANGUAGE: pt
+#+OPTIONS: H:3 num:t toc:t @:t \n:nil ::t |:t ':t ^:nil f:t *:t TeX:t LaTeX:t
+#+OPTIONS: date:t author:t
+
+#+BEGIN_SRC elisp :results silent :exports none
+;; exporta html como um arquivo só
+;; Fonte: https://www.reddit.com/r/orgmode/comments/7dyywu/creating_a_selfcontained_html/
+(defun org-html--format-image (source attributes info)
+  (format "<img src=\"data:image/%s;base64,%s\"%s />"
+		  (or (file-name-extension source) "")
+		  (base64-encode-string
+		   (with-temp-buffer
+			 (insert-file-contents-literally source)
+			 (buffer-string)))
+		  (file-name-nondirectory source)))
+
+#+END_SRC
+
+* Setup
+
+** Required GNU R packages
+
+   The following GNU R packages are necessary to carry the analysis that follows.
+
+   #+BEGIN_SRC R :exports code :results silent :session 
+   library(ggplot2)    # ggplot, geom_dotplot, geom_line ...
+   library(dplyr)      # %>%
+   library(tidyr)      # pivot_longer
+   library(stringr)    # str_split
+   library(BEST)       # BESTmcmc
+   library(xtable)     # xtable
+   library(HDInterval) # hdi
+   #+END_SRC
+
+** Environment for computations
+
+   In order to facilitate the reproducibility of results in paper, these are the versions of the
+
+   Operational System 
+   #+begin_src sh :exports both :results output
+   hostnamectl | tail -3
+   #+end_src
+
+   #+RESULTS:
+   :   Operating System: Linux Mint 20.1
+   :             Kernel: Linux 5.4.0-66-generic
+   :       Architecture: x86-64
+   
+   and Statistical Software
+   #+begin_src R :exports both :results output :session
+   sessionInfo()
+   #+end_src
+
+   #+RESULTS:
+   #+begin_example
+   R version 3.6.3 (2020-02-29)
+   Platform: x86_64-pc-linux-gnu (64-bit)
+   Running under: Linux Mint 20.1
+
+   Matrix products: default
+   BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.9.0
+   LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.9.0
+
+   locale:
+	[1] LC_CTYPE=pt_BR.UTF-8       LC_NUMERIC=C              
+	[3] LC_TIME=pt_BR.UTF-8        LC_COLLATE=pt_BR.UTF-8    
+	[5] LC_MONETARY=pt_BR.UTF-8    LC_MESSAGES=pt_BR.UTF-8   
+	[7] LC_PAPER=pt_BR.UTF-8       LC_NAME=C                 
+	[9] LC_ADDRESS=C               LC_TELEPHONE=C            
+   [11] LC_MEASUREMENT=pt_BR.UTF-8 LC_IDENTIFICATION=C       
+
+   attached base packages:
+   [1] stats     graphics  grDevices utils     datasets  methods   base     
+
+   other attached packages:
+   [1] xtable_1.8-4     BEST_0.5.2       HDInterval_0.2.2 stringr_1.4.0   
+   [5] tidyr_1.1.2      dplyr_1.0.3      ggplot2_3.3.2   
+
+   loaded via a namespace (and not attached):
+	[1] magrittr_2.0.1   tidyselect_1.1.0 munsell_0.5.0    lattice_0.20-41 
+	[5] colorspace_1.4-1 R6_2.5.0         rlang_0.4.10     blob_1.2.1      
+	[9] tools_3.6.3      parallel_3.6.3   grid_3.6.3       gtable_0.3.0    
+   [13] coda_0.19-3      DBI_1.1.1.9000   withr_2.4.0      ellipsis_0.3.1  
+   [17] assertthat_0.2.1 tibble_3.0.5     lifecycle_0.2.0  crayon_1.3.4    
+   [21] purrr_0.3.4      vctrs_0.3.6      glue_1.4.2       stringi_1.5.3   
+   [25] compiler_3.6.3   pillar_1.4.7     rjags_4-10       generics_0.1.0  
+   [29] scales_1.1.1     pkgconfig_2.0.3
+   #+end_example
+
+   used to carry out the analyses.
+   
+
+   All analysis were carried out on 
+   #+begin_src emacs-lisp :exports results :results drawer
+   (print (emacs-version))
+   #+end_src
+
+   #+RESULTS:
+   :results:
+   GNU Emacs 26.3 (build 2, x86_64-pc-linux-gnu, GTK+ Version 3.24.14)
+	of 2020-03-26, modified by Debian
+   :end:
+   , using Org Mode version 
+   #+begin_src emacs-lisp :exports results :results drawer
+   (print (org-version))
+   #+end_src
+
+   #+RESULTS:
+   :results:
+   9.4.4
+   :end:
+   .
+   
+** Calling durations (original sample)
+
+   #+NAME: raw_data
+   | participant | prototypical |        initial_ma |        initial_ri |        initial_na |      insistent_ma |      insistent_ri |      insistent_na |
+   |-------------+--------------+-------------------+-------------------+-------------------+-------------------+-------------------+-------------------|
+   | DOMJ        | x            | 0.149762525509196 | 0.132443049770037 | 0.246850021143347 | 0.156713744712348 | 0.159106320967498 | 0.261987099938963 |
+   | DOMJ        |              | 0.114871360117030 | 0.143589200146287 | 0.254544491168419 | 0.157326604331973 | 0.159843830001285 | 0.307101531656013 |
+   | DOMJ        |              | 0.117871602266216 | 0.162246793707616 | 0.300919266961988 | 0.146701471808092 | 0.179709302964913 | 0.329273041733313 |
+   | DOMJ        |              | 0.152927073544664 | 0.151733528128053 | 0.280184062120611 | 0.177045449155535 | 0.200547057450518 | 0.459064748695327 |
+   | DOMJ        |              | 0.142759724558498 | 0.124730401115327 | 0.243219299047109 | 0.155418285470303 | 0.174747599934610 | 0.332213066121070 |
+   | FSBF        |              | 0.203475804141381 | 0.170678717289645 | 0.178041328623708 | 0.190151273108256 | 0.195674339132147 | 0.254061037098998 |
+   | FSBF        | x            | 0.160875993298644 | 0.177663053468937 | 0.275587571128981 | 0.233948718239762 | 0.266262077112658 | 0.394526194690510 |
+   | FSBF        |              | 0.145044909018767 | 0.189162735511976 | 0.276794034710815 | 0.163638786909817 | 0.240428164708303 | 0.412709794140314 |
+   | FSBF        |              | 0.140230006465817 | 0.191551297491966 | 0.375874244135180 | 0.181305904302792 | 0.242026277913633 | 0.431029130983998 |
+   | FSBF        |              | 0.150126748131457 | 0.195513904543292 | 0.261848979299052 | 0.154871973876284 | 0.259218339253922 | 0.404204867989167 |
+   | JOAL        |              | 0.175048614511393 | 0.161795722561004 | 0.190241071931676 | 0.169841368095110 | 0.207067203209860 | 0.329253239223566 |
+   | JOAL        |              | 0.160703855374257 | 0.221787682738792 | 0.266131075472418 | 0.205542446451340 | 0.269348952079708 | 0.396318458046820 |
+   | JOAL        | x            | 0.173176553376571 | 0.217347091282337 | 0.302182568847378 | 0.211511464492846 | 0.251370711576311 | 0.360810068208747 |
+   | JOAL        |              | 0.196592876660797 | 0.229130420526245 | 0.323818403088525 | 0.215823899017019 | 0.259976643804968 | 0.384758425448255 |
+   | JUJM        | x            | 0.204063444504842 | 0.213535217481882 | 0.401856023624836 | 0.253092844866000 | 0.265591256958148 | 0.409322996017852 |
+   | JUJM        |              | 0.187055597812044 | 0.215833382090820 | 0.433265529974907 | 0.222426492119541 | 0.257885787964686 | 0.446464770413862 |
+   | JUJM        |              | 0.207385354608136 | 0.210600631423766 | 0.300628382261407 | 0.244304051276546 | 0.252557566522375 | 0.406072950094800 |
+   | MMEF        |              | 0.121752977384488 | 0.121262037959551 | 0.112399478549680 | 0.116820892715231 | 0.129337416934720 | 0.130728141847997 |
+   | MMEF        |              | 0.139653420141424 | 0.116617804447993 | 0.097901366697081 | 0.106539722582117 | 0.135334242198906 | 0.154050679949818 |
+   | MMEF        | x            | 0.108723233348498 | 0.118607163652907 | 0.162378855001004 | 0.148679934879239 | 0.166344877637169 | 0.206090998842510 |
+   | MMEF        |              | 0.117405645732203 | 0.116115473801080 | 0.158691147528143 | 0.148897350475609 | 0.131029668418536 | 0.167360621934584 |
+
+** Data tidying in R
+
+   #+BEGIN_SRC R :exports code :results results :colnames yes :hline yes :var df_wide=raw_data :session 
+   ## the data frame 'df_wide' contains the original sample
+
+   ## the data frame 'df_long' lays down the structure needed 
+   ## for the exploratory data analysis to come
+
+   df_long <- df_wide %>% 
+	 pivot_longer(
+	   !c(participant, prototypical)
+	  ,names_to = c('calling','syllable')
+	  ,names_pattern = '(.*)_(.*)'
+	  ,values_to = 'duration'
+	 ) %>%
+	 mutate(
+	   calling  = factor( calling,  levels = c('initial','insistent') )
+	  ,syllable = factor( syllable, levels = c('ma','ri','na','marina') )
+	 ) 
+
+   set.seed(1234)
+   sample_idx <- sample( 1:nrow(df_long), size = 15)
+   df_long[ sample_idx, ]
+   #+END_SRC
+
+   #+RESULTS:
+   | participant | prototypical | calling   | syllable |          duration |
+   |-------------+--------------+-----------+----------+-------------------|
+   | DOMJ        |              | insistent | ma       | 0.155418285470303 |
+   | JOAL        |              | initial   | ri       | 0.229130420526245 |
+   | MMEF        |              | initial   | ri       |  0.11611547380108 |
+   | DOMJ        |              | insistent | ma       | 0.177045449155535 |
+   | JUJM        |              | insistent | ri       | 0.252557566522375 |
+   | MMEF        |              | insistent | na       | 0.130728141847997 |
+   | MMEF        |              | initial   | na       | 0.097901366697081 |
+   | DOMJ        |              | initial   | na       | 0.254544491168419 |
+   | DOMJ        | x            | insistent | ri       | 0.159106320967498 |
+   | FSBF        | x            | initial   | ri       | 0.177663053468937 |
+   | DOMJ        |              | insistent | ma       | 0.146701471808092 |
+   | DOMJ        | x            | insistent | ma       | 0.156713744712348 |
+   | JUJM        |              | initial   | ri       | 0.210600631423766 |
+   | MMEF        |              | initial   | ma       | 0.121752977384488 |
+   | JUJM        | x            | initial   | ri       | 0.213535217481882 |
+
+
+
+* Exploratory Data Analysis
+
+  There are src_R[:session :results replace ]{ nrow(df_wide)} {{{results(=21=)}}} measurements available, taken individually from src_R[:session :results replace ]{ length(unique(df_wide$participant))} {{{results(=5=)}}} participants calling the name =Marina= in two situations: 
+  - initial calling
+  - insistent calling. 
+
+  Each syllable's duration in milliseconds for the paired observations constitute the sample to be analyzed.
+
+** Scatter-plot by speaker
+
+   #+begin_src R :exports code :results silent :session 
+   ## scatter plot (exploratory data analysis)
+   scatterplot_data <- df_long %>%
+	 mutate( participant = as.factor( participant ) ) %>%
+	 pivot_wider(
+	   names_from = calling
+	  ,values_from = duration
+	  ,values_fn = list
+	 ) %>%
+	 unnest( cols = c(initial, insistent) ) 
+
+   scatterplot_graph <- scatterplot_data %>% 
+	 ggplot( aes( x = initial, y = insistent, color = syllable ) ) +
+	 geom_point(alpha = 0.5) +
+	 scale_color_manual( values = c('black','blue','purple')) +
+	 scale_fill_manual(  values = c('black','blue','purple')) +
+	 facet_grid( . ~ participant) + 
+	 theme( legend.position="bottom")+
+	 labs(
+	   x        = "initial calling (ms)"
+	  ,y        = "insistent calling (ms)"
+	  ,color    = "syllable"
+	 )
+
+   ## export graphs to pdf and png formats
+   ggsave( plot = scatterplot_graph, filename = './scatterplot_by_speaker.pdf', width=9.21, height=2.96)
+   ggsave( plot = scatterplot_graph, filename = './scatterplot_by_speaker.png', width=9.21, height=2.96)
+   #+end_src
+
+   #+CAPTION: Scatter plot comparing syllable by speakers
+   #+ATTR_ORG: :width 800
+   [[./scatterplot_by_speaker.png]]
+
+
+** Scatter-plot by syllable
+
+   #+begin_src R :exports code :results silent :session 
+   ## scatter plot by speaker and syllable (exploratory data analysis)
+   scatterplot_graph <- scatterplot_data %>% 
+	 ggplot( aes( x = initial, y = insistent, color = participant ) ) +
+	 geom_point(alpha = 0.9) +
+	 facet_grid( . ~ syllable) + 
+	 scale_colour_brewer(palette = "Dark2") +
+	 theme( legend.position="bottom")+
+	 labs(
+	   x        = "initial calling (ms)"
+	  ,y        = "insistent calling (ms)"
+	  ,color    = "speaker"
+	 )
+
+   ## export graphs to pdf and png formats
+   ggsave( plot = scatterplot_graph, filename = './scatterplot_by_syllable.pdf', width=9.21, height=2.96)
+   ggsave( plot = scatterplot_graph, filename = './scatterplot_by_syllable.png', width=9.21, height=2.96)
+   #+end_src
+  
+   #+CAPTION: Scatter plot comparing speakers by syllable
+   #+ATTR_ORG: :width 800
+   [[./scatterplot_by_syllable.png]]
+
+   
+** Dot Plot
+   #+BEGIN_SRC R :exports code :results silent :session 
+   ## mean and median per calling type and syllable
+   grp_mean_median <- df_long %>%
+	 group_by( calling, syllable ) %>%
+	 summarise(
+	   mean   = mean( duration )
+	  ,median = median( duration )
+	 )
+
+   ## dot plot (exploratory data analysis)
+   dotplot_graph <- df_long %>%
+	 ggplot( aes(x=duration, fill=calling) ) +
+	 geom_dotplot(dotsize=1.5, method = 'histodot', alpha=0.4) +
+	 scale_y_continuous(NULL, breaks = NULL) + 
+	 facet_grid(. ~ syllable) +
+	 scale_color_manual( values = c('black','blue')) +
+	 scale_fill_manual(  values = c('black','blue')) +
+	 theme( legend.position="bottom")+
+	 geom_vline(
+	   data=grp_mean_median
+	  ,aes(xintercept=median, color=calling)
+	  ,linetype="dashed"
+	 )+
+	 labs(
+	   x        = "duration in milliseconds"
+	  ,title    = "Dot plot"
+	  ,subtitle = "vertical dashed lines are the medians"
+	  ,fill     = "calling"
+	  ,color    = "calling"
+	 )
+
+   ## export graphs to pdf and png formats
+   ggsave( plot = dotplot_graph, filename = './dotplot.pdf', width=9.21, height=2.96)
+   ggsave( plot = dotplot_graph, filename = './dotplot.png', width=9.21, height=2.96)
+   #+END_SRC
+
+   #+CAPTION: Dot plot of the original data
+   #+ATTR_ORG: :width 800
+   [[./dotplot.png]]
+
+
+* Inference
+
+** Wilcoxon signed-rank nonparametrical test
+
+   The column =prototypical= determines, at discretion of the linguists, which observation should be used as the representative one.
+
+   Let $\left(X_i^{s}, Y_i^{s}\right)$ be the i-th paired observation, corresponding to the i-th participant calling the syllable \textit{s} initially,  $X_i^{s}$,  as well as insistently, $Y_i^{s}$, where $i=1,2,3,4,5$ and $s = \textrm{ma}, \textrm{ri}, \textrm{na}, \textrm{marina}$. 
+
+   One is formally testing the hypothesis
+
+   - $H_0$: The initial calling is longer than the insistent one $(E(X_i) \geq E(Y_i))$
+   - $H_1$: The initial calling is shorter than the insistent one $(E(X_i) < E(Y_i))$
+
+   Results of the hypothesys test of difference in durations for the syllable =ma=:
+
+   #+BEGIN_SRC R :exports both :results output :session
+   wilcox.test(
+	 duration ~ calling
+	,data=subset(df_long, syllable=="ma" & prototypical=="x")
+	,paired=TRUE
+	,alternative="less"
+   )
+   #+END_SRC
+
+   #+RESULTS:
+   : 
+   : 	Wilcoxon signed rank test
+   : 
+   : data:  duration by calling
+   : V = 0, p-value = 0.03125
+   : alternative hypothesis: true location shift is less than 0
+
+   Results of the hypothesys test of difference in durations for the syllable =ri=:
+
+   #+BEGIN_SRC R :exports both :results output :session
+   wilcox.test(
+	 duration ~ calling
+	,data=subset(df_long, syllable=="ri" & prototypical=="x")
+	,paired=TRUE
+	,alternative="less"
+   )
+   #+END_SRC
+
+   #+RESULTS:
+   : 
+   : 	Wilcoxon signed rank test
+   : 
+   : data:  duration by calling
+   : V = 0, p-value = 0.03125
+   : alternative hypothesis: true location shift is less than 0
+
+   Results of the hypothesys test of difference in durations for the syllable =na=:
+
+   #+BEGIN_SRC R :exports both :results output :session
+   wilcox.test(
+	 duration ~ calling
+	,data=subset(df_long, syllable=="na" & prototypical=="x")
+	,paired=TRUE
+	,alternative="less"
+   )
+   #+END_SRC
+
+   #+RESULTS:
+   : 
+   : 	Wilcoxon signed rank test
+   : 
+   : data:  duration by calling
+   : V = 0, p-value = 0.03125
+   : alternative hypothesis: true location shift is less than 0
+
+
+** Bayesian estimation via package 'BEST'
+
+   Upon using the package =BEST= from John Kruschke, these are the assumptions regarding the bayesian alternative to the NHST
+
+   Source: http://www.sumsar.net/blog/2014/02/bayesian-first-aid-two-sample-t-test/, accessed on February 26th 2020
+   #+ATTR_ORG: :width 500
+   #+NAME:   fig_BEST
+   [[./BEST.png]]
+
+   Under this alternative only the prototypical observations were taken into consideration in the analysis.
+
+*** MCMC Simulations
+	
+	#+BEGIN_SRC R :exports code :results silent :session
+	df_prot     <- subset( df_wide, prototypical=="x")
+	seed        <- 131211
+	sims_amount <- 3e5
+	#+END_SRC
+
+	#+CAPTION: Syllable 'ma': Results of the MCMC posterior distribution simulation
+	#+BEGIN_SRC R :exports both :results output :session
+	print(
+	  sim.ma <- BESTmcmc(
+		y1 = df_prot[ , 'initial_ma'   ]
+	   ,y2 = df_prot[ , 'insistent_ma' ]
+	   ,numSavedSteps = sims_amount
+	   ,rnd.seed = seed
+	   ,verbose = FALSE
+	  )
+	)
+	#+END_SRC
+
+	#+RESULTS:
+	#+begin_example
+	MCMC fit results for BEST analysis:
+	300000 simulations saved.
+			   mean       sd   median   HDIlo   HDIup  Rhat n.eff
+	mu1     0.15947  0.02992  0.15961 0.10334  0.2156 1.001 60968
+	mu2     0.20117  0.03962  0.20118 0.12507  0.2768 1.001 63439
+	nu     33.07277 29.34611 24.47074 1.00134 91.3661 1.000 63264
+	sigma1  0.05341  0.03949  0.04343 0.01404  0.1160 1.001 15719
+	sigma2  0.07264  0.05396  0.05918 0.02144  0.1573 1.003 13272
+
+	'HDIlo' and 'HDIup' are the limits of a 95% HDI credible interval.
+	'Rhat' is the potential scale reduction factor (at convergence, Rhat=1).
+	'n.eff' is a crude measure of effective sample size.
+	#+end_example
+
+
+	#+CAPTION: Syllable 'ri': Results of the MCMC posterior distribution simulation
+	#+BEGIN_SRC R :exports both :results output :session
+	print(
+	  sim.ri <- BESTmcmc(
+		y1 = df_prot[ , 'initial_ri'   ]
+	   ,y2 = df_prot[ , 'insistent_ri' ]
+	   ,numSavedSteps = sims_amount
+	   ,rnd.seed = seed
+	   ,verbose = FALSE
+	  )
+	)
+	#+END_SRC
+
+	#+RESULTS:
+	#+begin_example
+	MCMC fit results for BEST analysis:
+	300000 simulations saved.
+			   mean       sd   median   HDIlo   HDIup  Rhat n.eff
+	mu1     0.17260  0.03983  0.17234 0.09838  0.2472 1.001 53800
+	mu2     0.22237  0.04547  0.22275 0.13446  0.3098 1.000 76452
+	nu     33.84924 29.61301 25.24688 1.00134 92.8353 1.000 61465
+	sigma1  0.07100  0.05096  0.05791 0.02091  0.1541 1.004 15553
+	sigma2  0.08442  0.05717  0.06926 0.02541  0.1834 1.003 20099
+
+	'HDIlo' and 'HDIup' are the limits of a 95% HDI credible interval.
+	'Rhat' is the potential scale reduction factor (at convergence, Rhat=1).
+	'n.eff' is a crude measure of effective sample size.
+	#+end_example
+
+
+	#+CAPTION: Syllable 'na': Results of the MCMC posterior distribution simulation
+	#+BEGIN_SRC R :exports both :results output :session
+	print(
+	  sim.na <- BESTmcmc(
+		y1 = df_prot[ , 'initial_na'   ]
+	   ,y2 = df_prot[ , 'insistent_na' ]
+	   ,numSavedSteps = sims_amount
+	   ,rnd.seed = seed
+	   ,verbose = FALSE
+	  )
+	)
+	#+END_SRC
+
+	#+RESULTS:
+	#+begin_example
+	MCMC fit results for BEST analysis:
+	300000 simulations saved.
+			  mean       sd  median   HDIlo   HDIup  Rhat n.eff
+	mu1     0.2770  0.07207  0.2770 0.14062  0.4174 1.001 64643
+	mu2     0.3278  0.07582  0.3284 0.18619  0.4701 1.000 57832
+	nu     33.0314 29.44382 24.3532 1.00034 91.6137 1.000 59973
+	sigma1  0.1327  0.09439  0.1085 0.03616  0.2896 1.011 16361
+	sigma2  0.1372  0.09730  0.1124 0.03956  0.2953 1.006 16151
+
+	'HDIlo' and 'HDIup' are the limits of a 95% HDI credible interval.
+	'Rhat' is the potential scale reduction factor (at convergence, Rhat=1).
+	'n.eff' is a crude measure of effective sample size.
+	#+end_example
+
+*** Diagnostic plots
+
+**** Histograms comparison of mu between calling types (with 95% HDI)
+	 
+	 #+BEGIN_SRC R :exports code :results silent :session
+	 ## Histograms of MCMC Posterior Distributions for each calling type
+	 histograms_data <- rbind.data.frame(
+	   cbind.data.frame( sim = 1:nrow(sim.ma), syllable = 'ma', sim.ma)
+	  ,cbind.data.frame( sim = 1:nrow(sim.ri), syllable = 'ri', sim.ri)
+	  ,cbind.data.frame( sim = 1:nrow(sim.na), syllable = 'na', sim.na)
+	 )%>%
+	   select( sim, syllable, mu1, mu2) %>% 
+	   pivot_longer(
+		 !c('sim','syllable')
+		,names_to = 'calling'
+		,values_to = 'value'
+	   ) %>% 
+	   mutate(
+		 syllable = factor( syllable, levels = c('ma','ri','na') )
+		,calling = factor(
+		   ifelse(calling=='mu1','initial','insistent')
+		  ,levels = c('initial','insistent')
+		 )
+	   )
+
+	 ## HDI lower and upper intervals
+	 hdi_vlines <- histograms_data %>%
+	   group_by( syllable, calling) %>%
+	   summarise(
+		 HDIlo = HDInterval::hdi( value, credMass = 0.95 )['lower'] 
+		,HDIhi = HDInterval::hdi( value, credMass = 0.95 )['upper']
+	   )
+
+	 histograms <- histograms_data %>%
+	   ggplot( aes( x = value, fill = calling) )+
+	   scale_color_manual( values = c('black','blue')) +
+	   scale_fill_manual( values = c('black','blue')) +
+	   geom_histogram(alpha = 0.4) +
+	   facet_grid( . ~ syllable, scales = 'free') +
+	   geom_vline( # HDI lower
+		 data = hdi_vlines
+		,aes( xintercept = HDIlo, color = calling)
+		,linetype = 'dashed'
+		,alpha = 0.6
+	   ) + 
+	   geom_vline( # HDI upper
+		 data = hdi_vlines
+		,aes( xintercept = HDIhi, color = calling)
+		,linetype = 'dashed'
+		,alpha = 0.6
+	   ) +
+	   xlim( 0, 0.6) + 
+	   theme( legend.position="bottom")+
+	   labs(
+		 x        = "duration in milliseconds"
+		,y        = "count"
+		,title    = 'Histograms of posterior simulated means by calling type for each syllable'
+		,subtitle = "Dashed vertical lines are the 95% highest density interval for each calling type"
+		,color    = "calling"
+		,fill     = "calling"
+		,caption  = paste0(sims_amount/1e3, 'k simulated values from the posterior distributions using GIBBS sampling')
+	   )
+
+	 ggsave( plot = histograms, filename = './histograms_mus.pdf', width=9.21, height=2.96)
+	 ggsave( plot = histograms, filename = './histograms_mus.png', width=9.21, height=2.96)
+	 #+END_SRC
+
+	 #+CAPTION: Histograms comparison
+	 #+ATTR_ORG: :width 800
+	 [[./histograms_mus.png]]
+
+
+**** Histograms comparison of sigma between calling types (with 95% HDI)
+	 
+	 #+BEGIN_SRC R :exports code :results silent :session
+	 ## Histograms of MCMC Posterior Distributions for each calling type
+	 histograms_data <- rbind.data.frame(
+	   cbind.data.frame( sim = 1:nrow(sim.ma), syllable = 'ma', sim.ma)
+	  ,cbind.data.frame( sim = 1:nrow(sim.ri), syllable = 'ri', sim.ri)
+	  ,cbind.data.frame( sim = 1:nrow(sim.na), syllable = 'na', sim.na)
+	 )%>%
+	   select( sim, syllable, sigma1, sigma2) %>% 
+	   pivot_longer(
+		 !c('sim','syllable')
+		,names_to = 'calling'
+		,values_to = 'value'
+	   ) %>% 
+	   mutate(
+		 syllable = factor( syllable, levels = c('ma','ri','na') )
+		,calling = factor(
+		   ifelse(calling=='sigma1','initial','insistent')
+		  ,levels = c('initial','insistent')
+		 )
+	   )
+
+	 ## HDI lower and upper intervals
+	 hdi_vlines <- histograms_data %>%
+	   group_by( syllable, calling) %>%
+	   summarise(
+		 HDIlo = HDInterval::hdi( value, credMass = 0.95 )['lower'] 
+		,HDIhi = HDInterval::hdi( value, credMass = 0.95 )['upper']
+	   )
+
+	 histograms <- histograms_data %>%
+	   ggplot( aes( x = value, fill = calling) )+
+	   scale_color_manual( values = c('black','blue')) +
+	   scale_fill_manual( values = c('black','blue')) +
+	   geom_histogram(alpha = 0.4) +
+	   facet_grid( . ~ syllable, scales = 'free') +
+	   geom_vline( # HDI lower
+		 data = hdi_vlines
+		,aes( xintercept = HDIlo, color = calling)
+		,linetype = 'dashed'
+		,alpha = 0.6
+	   ) + 
+	   geom_vline( # HDI upper
+		 data = hdi_vlines
+		,aes( xintercept = HDIhi, color = calling)
+		,linetype = 'dashed'
+		,alpha = 0.6
+	   ) +
+	   xlim( 0, 0.5) + 
+	   theme( legend.position="bottom")+
+	   labs(
+		 x        = "standard deviation in milliseconds"
+		,y        = "count"
+		,title    = 'Histograms of posterior simulated standard deviations by calling type for each syllable'
+		,subtitle = "Dashed vertical lines are the 95% highest density interval for each calling type"
+		,color    = "calling"
+		,fill     = "calling"
+		,caption  = paste0(sims_amount/1e3, 'k simulated values from the posterior distributions using GIBBS sampling')
+	   )
+
+	 ggsave( plot = histograms, filename = './histograms_sigmas.pdf', width=9.21, height=2.96)
+	 ggsave( plot = histograms, filename = './histograms_sigmas.png', width=9.21, height=2.96)
+	 #+END_SRC
+
+	 #+ATTR_ORG: :width 800
+	 [[./histograms_sigmas.png]]
+
+
+**** Histograms comparison of nu (normality parameter) between calling types (with 95% HDI)
+	 
+	 #+BEGIN_SRC R :exports code :results silent :session
+	 ## Histograms of MCMC Posterior Distributions for each calling type
+	 histograms_data <- rbind.data.frame(
+	   cbind.data.frame( sim = 1:nrow(sim.ma), syllable = 'ma', sim.ma)
+	  ,cbind.data.frame( sim = 1:nrow(sim.ri), syllable = 'ri', sim.ri)
+	  ,cbind.data.frame( sim = 1:nrow(sim.na), syllable = 'na', sim.na)
+	 ) %>% 
+	   select( sim, syllable, nu) %>% 
+	   pivot_longer(
+		 !c('sim','syllable')
+		,names_to = 'calling'
+		,values_to = 'value'
+	   ) %>% 
+	   mutate(
+		 syllable = factor( syllable, levels = c('ma','ri','na') )
+	   )
+
+	 ## HDI lower and upper intervals
+	 hdi_vlines <- histograms_data %>%
+	   group_by( syllable, calling) %>%
+	   summarise(
+		 HDIlo = HDInterval::hdi( value, credMass = 0.95 )['lower'] 
+		,HDIhi = HDInterval::hdi( value, credMass = 0.95 )['upper']
+	   )
+
+	 histograms_nu <- histograms_data %>%
+	   ggplot( aes( x = value, fill = calling) )+
+	   scale_color_manual( values = c('black') ) +
+	   scale_fill_manual( values = c('black') ) +
+	   geom_histogram(alpha = 0.4) +
+	   facet_grid( . ~ syllable, scales = 'free') +
+	   geom_vline( # HDI lower
+		 data = hdi_vlines
+		,aes( xintercept = HDIlo, color = calling)
+		,linetype = 'dashed'
+		,alpha = 0.6
+	   ) + 
+	   geom_vline( # HDI upper
+		 data = hdi_vlines
+		,aes( xintercept = HDIhi, color = calling)
+		,linetype = 'dashed'
+		,alpha = 0.6
+	   ) +
+	   xlim( 0, 300) + 
+	   theme( legend.position="none", )+
+	   labs(
+		 x        = ""
+		,y        = "count"
+		,title    = 'Histograms of posterior simulated normality parameter by calling type for each syllable'
+		,subtitle = "Dashed vertical lines are the 95% highest density interval for each syllable"
+		,caption  = paste0(sims_amount/1e3, 'k simulated values from the posterior distributions using GIBBS sampling')
+	   )
+
+	 ggsave( plot = histograms_nu, filename = './histograms_nu.pdf', width=9.21, height=2.96)
+	 ggsave( plot = histograms_nu, filename = './histograms_nu.png', width=9.21, height=2.96)
+	 #+END_SRC
+
+	 #+ATTR_ORG: :width 800
+	 [[./histograms_nu.png]]
+
+
+	 
+**** Traceplots
+	 
+	 #+BEGIN_SRC R :exports code :results silent :session
+	 ## Trace plots of MCMC Posterior Distributions
+	 trace_plots <- rbind.data.frame(
+	   cbind.data.frame( sim = 1:nrow(sim.ma), syllable = 'ma', sim.ma)
+	  ,cbind.data.frame( sim = 1:nrow(sim.ri), syllable = 'ri', sim.ri)
+	  ,cbind.data.frame( sim = 1:nrow(sim.na), syllable = 'na', sim.na)
+	 )%>%
+	   select( sim, syllable, mu1, mu2) %>% 
+	   pivot_longer(
+		 !c('sim','syllable')
+		,names_to = 'calling'
+		,values_to = 'value'
+	   ) %>% 
+	   mutate(
+		 syllable = factor( syllable, levels = c('ma','ri','na') )
+		,calling = factor(
+		   ifelse(calling=='mu1','initial','insistent')
+		  ,levels = c('initial','insistent')
+		 )
+	   ) %>% 
+	   ggplot( aes( x = sim, y = value, color = calling) )+
+	   scale_color_manual( values = c('black','blue')) +
+	   geom_line(alpha = 0.5) +
+	   facet_grid( . ~ syllable) + 
+	   theme( legend.position="bottom")+
+	   labs(
+		 x        = "simulation"
+		,y        = "duration in milliseconds"
+		,title    = "Trace plots of posterior simulated calling values for each syllable"
+		,subtitle = ""
+		,color    = "calling"
+	   )
+
+	 ggsave( plot = trace_plots, filename = './traceplots.pdf', width=9.21, height=2.96)
+	 ggsave( plot = trace_plots, filename = './traceplots.png', width=9.21, height=2.96)
+	 #+END_SRC
+
+	 #+CAPTION: Trace plots of the simulations
+	 #+ATTR_ORG: :width 800
+	 [[./traceplots.png]]
+
+
+**** Traceplots of difference of means
+
+	 #+BEGIN_SRC R :exports code :results silent :session
+	 ## Trace plots of MCMC Posterior Distributions of Difference of Means
+	 trace_plots_diffs <- rbind.data.frame(
+	   cbind.data.frame( sim = 1:nrow(sim.ma), syllable = 'ma', sim.ma)
+	  ,cbind.data.frame( sim = 1:nrow(sim.ri), syllable = 'ri', sim.ri)
+	  ,cbind.data.frame( sim = 1:nrow(sim.na), syllable = 'na', sim.na)
+	 )%>%
+	   mutate( diff = mu1 - mu2 ) %>%
+	   select( sim, syllable, diff) %>% 
+	   pivot_longer(
+		 !c('sim','syllable')
+		,names_to = 'calling'
+		,values_to = 'value'
+	   ) %>% 
+	   mutate(
+		 syllable = factor( syllable, levels = c('ma','ri','na') )
+	   ) %>% 
+	   ggplot( aes( x = sim, y = value) )+
+	   geom_line(alpha = 0.6) +
+	   geom_hline( yintercept = 0, col = 'red') +
+	   facet_grid( . ~ syllable) + 
+	   theme( legend.position="bottom")+
+	   labs(
+		 x        = "simulation"
+		,y        = "duration of difference in ms"
+		,title    = "Trace plots of difference in means for each syllable"
+		,subtitle = ""
+		,caption  = "Note: difference in means calculated as mean of initial calling minus the mean of insistente calling." 
+	   )
+
+	 ggsave( plot = trace_plots_diffs, filename = './traceplots_diffs.pdf', width=9.21, height=2.96)
+	 ggsave( plot = trace_plots_diffs, filename = './traceplots_diffs.png', width=9.21, height=2.96)
+	 #+END_SRC
+
+	 #+CAPTION: Trace plots of the simulations
+	 #+ATTR_ORG: :width 800
+	 [[./traceplots_diffs.png]]
+
+*** Export results to LaTeX table in article
+
+	#+BEGIN_SRC R :exports none :results silent :session
+	capture.output( print(sim.ma) , file = './postma' )
+	capture.output( print(sim.ri) , file = './postri' )
+	capture.output( print(sim.na) , file = './postna' )
+	#+END_SRC
+
+	#+name: postma
+	#+begin_src sh :exports both :results replace
+	tail -n +4 ./postma | head -5 | tr -s ' ' # | sed 's/ / \& /g'
+	#+end_src
+
+	#+RESULTS: postma
+	| mu1    |  0.15947 |  0.02992 |  0.15961 | 0.10334 |  0.2156 | 1.001 | 60968 |
+	| mu2    |  0.20117 |  0.03962 |  0.20118 | 0.12507 |  0.2768 | 1.001 | 63439 |
+	| nu     | 33.07277 | 29.34611 | 24.47074 | 1.00134 | 91.3661 |   1.0 | 63264 |
+	| sigma1 |  0.05341 |  0.03949 |  0.04343 | 0.01404 |   0.116 | 1.001 | 15719 |
+	| sigma2 |  0.07264 |  0.05396 |  0.05918 | 0.02144 |  0.1573 | 1.003 | 13272 |
+
+	#+name: postri
+	#+begin_src sh :exports both :results replace
+	tail -n +4 ./postri | head -5 | tr -s ' ' # | sed 's/ / \& /g'
+	#+end_src
+
+	#+RESULTS: postri
+	| mu1    |   0.1726 |  0.03983 |  0.17234 | 0.09838 |  0.2472 | 1.001 | 53800 |
+	| mu2    |  0.22237 |  0.04547 |  0.22275 | 0.13446 |  0.3098 |   1.0 | 76452 |
+	| nu     | 33.84924 | 29.61301 | 25.24688 | 1.00134 | 92.8353 |   1.0 | 61465 |
+	| sigma1 |    0.071 |  0.05096 |  0.05791 | 0.02091 |  0.1541 | 1.004 | 15553 |
+	| sigma2 |  0.08442 |  0.05717 |  0.06926 | 0.02541 |  0.1834 | 1.003 | 20099 |
+
+	#+name: postna
+	#+begin_src sh :exports both :results replace
+	tail -n +4 ./postna | head -5 | tr -s ' ' # | sed 's/ / \& /g'
+	#+end_src
+
+	#+RESULTS: postna
+	| mu1    |   0.277 |  0.07207 |   0.277 | 0.14062 |  0.4174 | 1.001 | 64643 |
+	| mu2    |  0.3278 |  0.07582 |  0.3284 | 0.18619 |  0.4701 |   1.0 | 57832 |
+	| nu     | 33.0314 | 29.44382 | 24.3532 | 1.00034 | 91.6137 |   1.0 | 59973 |
+	| sigma1 |  0.1327 |  0.09439 |  0.1085 | 0.03616 |  0.2896 | 1.011 | 16361 |
+	| sigma2 |  0.1372 |   0.0973 |  0.1124 | 0.03956 |  0.2953 | 1.006 | 16151 |
+
+
+	#+header: :var ma=postma ri=postri na=postna
+	#+begin_src R :exports results :results drawer replace :session
+	rbind( 
+	  cbind( V0 = c('\\multirow{5}{*}{ma}',rep('', times = 4) ), ma )
+	 ,cbind( V0 = c('\\multirow{5}{*}{ri}',rep('', times = 4) ), ri )
+	 ,cbind( V0 = c('\\multirow{5}{*}{ma}',rep('', times = 4) ), na )
+	) %>%
+	  rename(
+		syllable  = V0
+	   ,parameter = V1
+	   ,mean      = V2
+	   ,sd        = V3
+	   ,median    = V4
+	   ,HDIlo     = V5
+	   ,HDIup     = V6
+	   ,Rhat      = V7
+	   ,n_eff     = V8
+	  ) %>%
+	  mutate(
+		parameter = case_when(
+		  parameter == 'mu1'    ~ "$\\mu_1$"   ,
+		  parameter == 'mu2'    ~ "$\\mu_2$"   ,
+		  parameter == 'nu'     ~ "$\\nu$"     ,
+		  parameter == 'sigma1' ~ "$\\sigma_1$",
+		  parameter == 'sigma2' ~ "$\\sigma_2$",
+		  TRUE  ~ as.character(parameter)
+		)
+	  ) %>% 
+	  xtable(., digits = 4 ) %>%
+	  print(.
+		   ,include.colnames       = FALSE
+		   ,sanitize.text.function = function(x){x}
+		   ,include.rownames       = FALSE
+		   ,only.contents          = TRUE
+		   ,comment                = FALSE
+		   ,hline.after            = c(-1      # before header
+									  ,0       # after header
+									  ,5       # before ma
+									  ,10      # before ri
+									  ,nrow(.) # before na
+									   )
+			)
+	#+end_src
+
+	#+RESULTS:
+	:results:
+	  \hline
+	\multirow{5}{*}{ma} & $\mu_1$ & 0.1595 & 0.0299 & 0.1596 & 0.1033 & 0.2156 & 1.0010 & 60968 \\ 
+	   & $\mu_2$ & 0.2012 & 0.0396 & 0.2012 & 0.1251 & 0.2768 & 1.0010 & 63439 \\ 
+	   & $\nu$ & 33.0728 & 29.3461 & 24.4707 & 1.0013 & 91.3661 & 1.0000 & 63264 \\ 
+	   & $\sigma_1$ & 0.0534 & 0.0395 & 0.0434 & 0.0140 & 0.1160 & 1.0010 & 15719 \\ 
+	   & $\sigma_2$ & 0.0726 & 0.0540 & 0.0592 & 0.0214 & 0.1573 & 1.0030 & 13272 \\ 
+	   \hline
+	\multirow{5}{*}{ri} & $\mu_1$ & 0.1726 & 0.0398 & 0.1723 & 0.0984 & 0.2472 & 1.0010 & 53800 \\ 
+	   & $\mu_2$ & 0.2224 & 0.0455 & 0.2228 & 0.1345 & 0.3098 & 1.0000 & 76452 \\ 
+	   & $\nu$ & 33.8492 & 29.6130 & 25.2469 & 1.0013 & 92.8353 & 1.0000 & 61465 \\ 
+	   & $\sigma_1$ & 0.0710 & 0.0510 & 0.0579 & 0.0209 & 0.1541 & 1.0040 & 15553 \\ 
+	   & $\sigma_2$ & 0.0844 & 0.0572 & 0.0693 & 0.0254 & 0.1834 & 1.0030 & 20099 \\ 
+	   \hline
+	\multirow{5}{*}{ma} & $\mu_1$ & 0.2770 & 0.0721 & 0.2770 & 0.1406 & 0.4174 & 1.0010 & 64643 \\ 
+	   & $\mu_2$ & 0.3278 & 0.0758 & 0.3284 & 0.1862 & 0.4701 & 1.0000 & 57832 \\ 
+	   & $\nu$ & 33.0314 & 29.4438 & 24.3532 & 1.0003 & 91.6137 & 1.0000 & 59973 \\ 
+	   & $\sigma_1$ & 0.1327 & 0.0944 & 0.1085 & 0.0362 & 0.2896 & 1.0110 & 16361 \\ 
+	   & $\sigma_2$ & 0.1372 & 0.0973 & 0.1124 & 0.0396 & 0.2953 & 1.0060 & 16151 \\ 
+	   \hline
+	:end:
+
+*** T approximation to normal distribution
+
+   #+begin_src R :exports none :results none :session
+   N <- 1e5
+   n <- rnorm( N, mean = 0, sd = 1)
+
+   par(mfrow=c(2,2))
+   for(dfT in c(15,33)){
+   t <- rt(N, df = dfT)
+   hist(n
+	   ,prob=TRUE
+	   ,breaks = 50
+	   ,ylim = c(0,0.4)
+	   ,main = paste0('N(0,1) vs T(', dfT,') [red]')
+	   ,xlab = 'x'
+	   ,col = 'grey'
+		)
+   lines( density( n), lwd=2 ) ; lines( density( t ), col = 'red', lwd=2 )
+   hist(n
+	   ,prob=TRUE
+	   ,breaks = 100
+	   ,ylim = c(0, 0.08)
+	   ,xlim = c(2, 3.5)
+	   ,main = paste0('N(0,1) vs T(', dfT,') [red] - Right Tail Comparison')
+	   ,xlab = 'x'
+	   ,col = 'grey'
+		)
+   lines( density( n), lwd=2 ) ; lines( density( t ), col = 'red', lwd=2 )
+   }
+   #+end_src

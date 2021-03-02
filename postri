@@ -1,0 +1,12 @@
+MCMC fit results for BEST analysis:
+300000 simulations saved.
+           mean       sd   median   HDIlo   HDIup  Rhat n.eff
+mu1     0.17260  0.03983  0.17234 0.09838  0.2472 1.001 53800
+mu2     0.22237  0.04547  0.22275 0.13446  0.3098 1.000 76452
+nu     33.84924 29.61301 25.24688 1.00134 92.8353 1.000 61465
+sigma1  0.07100  0.05096  0.05791 0.02091  0.1541 1.004 15553
+sigma2  0.08442  0.05717  0.06926 0.02541  0.1834 1.003 20099
+
+'HDIlo' and 'HDIup' are the limits of a 95% HDI credible interval.
+'Rhat' is the potential scale reduction factor (at convergence, Rhat=1).
+'n.eff' is a crude measure of effective sample size.
