@@ -300,6 +300,47 @@
    #+ATTR_ORG: :width 800
    [[./dotplot.png]]
 
+** Dot Plot (facet_grid)
+   #+BEGIN_SRC R :exports code :results silent :session 
+   ## mean and median per calling type and syllable
+   grp_mean_median <- df_long %>%
+	 group_by( calling, syllable ) %>%
+	 summarise(
+	   mean   = mean( duration )
+	  ,median = median( duration )
+	 )
+
+   ## dot plot (exploratory data analysis)
+   dotplot_graph <- df_long %>%
+	 ggplot( aes(x=duration, fill=calling) ) +
+	 geom_dotplot(dotsize=1.5, method = 'histodot', alpha=0.4) +
+	 scale_y_continuous(NULL, breaks = NULL) + 
+	 facet_grid(calling ~ syllable) +
+	 scale_color_manual( values = c('black','blue')) +
+	 scale_fill_manual(  values = c('black','blue')) +
+	 theme( legend.position="bottom")+
+	 geom_vline(
+	   data=grp_mean_median
+	  ,aes(xintercept=median, color=calling)
+	  ,linetype="dashed"
+	 )+
+	 labs(
+	   x        = "duration in milliseconds"
+	  ,title    = "Dot plot"
+	  ,subtitle = "vertical dashed lines are the medians"
+	  ,fill     = "calling"
+	  ,color    = "calling"
+	 )
+
+   ## export graphs to pdf and png formats
+   ggsave( plot = dotplot_graph, filename = './dotplot_nonoverlapped.pdf', width=9.21, height=2.96)
+   ggsave( plot = dotplot_graph, filename = './dotplot_nonoverlapped.png', width=9.21, height=2.96)
+   #+END_SRC
+
+   #+CAPTION: Dot plot of the original data
+   #+ATTR_ORG: :width 800
+   [[./dotplot_nonoverlapped.png]]
+
 
 * Inference
 
