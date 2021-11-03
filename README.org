@@ -47,8 +47,8 @@
    #+end_src
 
    #+RESULTS:
-   :   Operating System: Linux Mint 20.1
-   :             Kernel: Linux 5.4.0-66-generic
+   :   Operating System: Linux Mint 20.2
+   :             Kernel: Linux 5.4.0-89-generic
    :       Architecture: x86-64
    
    and Statistical Software
@@ -60,7 +60,7 @@
    #+begin_example
    R version 3.6.3 (2020-02-29)
    Platform: x86_64-pc-linux-gnu (64-bit)
-   Running under: Linux Mint 20.1
+   Running under: Linux Mint 20.2
 
    Matrix products: default
    BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.9.0
@@ -79,17 +79,17 @@
 
    other attached packages:
    [1] xtable_1.8-4     BEST_0.5.2       HDInterval_0.2.2 stringr_1.4.0   
-   [5] tidyr_1.1.2      dplyr_1.0.3      ggplot2_3.3.2   
+   [5] tidyr_1.1.2      dplyr_1.0.3      ggplot2_3.3.3   
 
    loaded via a namespace (and not attached):
 	[1] magrittr_2.0.1   tidyselect_1.1.0 munsell_0.5.0    lattice_0.20-41 
-	[5] colorspace_1.4-1 R6_2.5.0         rlang_0.4.10     blob_1.2.1      
-	[9] tools_3.6.3      parallel_3.6.3   grid_3.6.3       gtable_0.3.0    
-   [13] coda_0.19-3      DBI_1.1.1.9000   withr_2.4.0      ellipsis_0.3.1  
-   [17] assertthat_0.2.1 tibble_3.0.5     lifecycle_0.2.0  crayon_1.3.4    
-   [21] purrr_0.3.4      vctrs_0.3.6      glue_1.4.2       stringi_1.5.3   
-   [25] compiler_3.6.3   pillar_1.4.7     rjags_4-10       generics_0.1.0  
-   [29] scales_1.1.1     pkgconfig_2.0.3
+	[5] colorspace_2.0-0 R6_2.5.0         rlang_0.4.11     fansi_0.4.2     
+	[9] blob_1.2.1       tools_3.6.3      parallel_3.6.3   grid_3.6.3      
+   [13] gtable_0.3.0     utf8_1.2.1       coda_0.19-3      DBI_1.1.1.9000  
+   [17] withr_2.4.2      ellipsis_0.3.2   assertthat_0.2.1 tibble_3.1.1    
+   [21] lifecycle_1.0.0  crayon_1.4.1     purrr_0.3.4      vctrs_0.3.8     
+   [25] glue_1.4.2       stringi_1.5.3    compiler_3.6.3   pillar_1.6.0    
+   [29] rjags_4-10       generics_0.1.0   scales_1.1.1     pkgconfig_2.0.3
    #+end_example
 
    used to carry out the analyses.
@@ -102,8 +102,8 @@
 
    #+RESULTS:
    :results:
-   GNU Emacs 26.3 (build 2, x86_64-pc-linux-gnu, GTK+ Version 3.24.14)
-	of 2020-03-26, modified by Debian
+   GNU Emacs 27.2 (build 1, x86_64-pc-linux-gnu, GTK+ Version 3.24.20)
+	of 2021-11-01
    :end:
    , using Org Mode version 
    #+begin_src emacs-lisp :exports results :results drawer
@@ -333,8 +333,8 @@
 	 )
 
    ## export graphs to pdf and png formats
-   ggsave( plot = dotplot_graph, filename = './dotplot_nonoverlapped.pdf', width=9.21, height=2.96)
-   ggsave( plot = dotplot_graph, filename = './dotplot_nonoverlapped.png', width=9.21, height=2.96)
+   ggsave( plot = dotplot_graph, filename = './dotplot_nonoverlapped.pdf', width=9.21, height=3.26)
+   ggsave( plot = dotplot_graph, filename = './dotplot_nonoverlapped.png', width=9.21, height=3.26)
    #+END_SRC
 
    #+CAPTION: Dot plot of the original data
